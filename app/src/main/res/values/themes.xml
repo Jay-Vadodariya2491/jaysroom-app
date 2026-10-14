@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.JaysRoom" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#007BFF</item>
+        <item name="colorPrimaryDark">#0056B3</item>
+        <item name="colorAccent">#FFD68A</item>
+        <item name="android:windowBackground">#F5F6F8</item>
+    </style>
+</resources>
