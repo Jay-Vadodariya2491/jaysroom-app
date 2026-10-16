@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Jay\'s Room</string>
-    <string name="scanning">Looking for Jay\'s Room on your Wi-Fi…\n\nMake sure your phone is on the same network as the ESP32.</string>
+    <string name="header_subtitle">Devices on your Wi-Fi</string>
+    <string name="scanning">Looking for Jay\'s Room…</string>
 </resources>

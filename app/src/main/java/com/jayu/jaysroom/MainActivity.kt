@@ -3,7 +3,6 @@ package com.jayu.jaysroom
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,7 +16,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var discovery: DeviceDiscovery
     private lateinit var adapter: DeviceAdapter
-    private lateinit var emptyText: TextView
+    private lateinit var emptyState: View
 
     // key (host:port) -> device, LinkedHashMap keeps a stable, insertion order
     private val devices = LinkedHashMap<String, EspDevice>()
@@ -26,7 +25,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        emptyText = findViewById(R.id.emptyText)
+        emptyState = findViewById(R.id.emptyState)
         val recyclerView = findViewById<RecyclerView>(R.id.deviceList)
 
         adapter = DeviceAdapter { device -> openDevice(device) }
@@ -58,7 +57,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshList() {
         adapter.submitList(devices.values.toList())
-        emptyText.visibility = if (devices.isEmpty()) View.VISIBLE else View.GONE
+        emptyState.visibility = if (devices.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun openDevice(device: EspDevice) {

@@ -1,0 +1,11 @@
+<resources>
+    <color name="header_start">#1E88E5</color>
+    <color name="header_end">#0D5BAE</color>
+    <color name="accent">#1E88E5</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="text_primary">#1A1A1A</color>
+    <color name="text_secondary">#8A8A8A</color>
+    <color name="online_dot">#34C759</color>
+    <color name="chevron">#C7C7C7</color>
+    <color name="screen_background">#F5F6F8</color>
+</resources>
