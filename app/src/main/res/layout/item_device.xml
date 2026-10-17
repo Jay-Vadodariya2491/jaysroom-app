@@ -58,13 +58,16 @@
         <View
             android:layout_width="9dp"
             android:layout_height="9dp"
-            android:layout_marginEnd="10dp"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/bg_dot_online" />
 
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_chevron_right" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/deviceSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/master_switch_description"
+            app:thumbTint="@color/card_background"
+            app:trackTint="@color/accent" />
 
     </LinearLayout>
 

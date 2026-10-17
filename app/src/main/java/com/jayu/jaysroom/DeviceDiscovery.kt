@@ -14,7 +14,11 @@ import android.util.Log
 data class EspDevice(
     val name: String,
     val host: String,
-    val port: Int
+    val port: Int,
+    // The raw mDNS/NSD service name (e.g. "jaysroom") - stable across a found/lost
+    // pair even when the display name above is a custom, unrelated label like
+    // "Amrut". Only used for matching, never shown in the UI.
+    val nsdServiceName: String
 ) {
     val url: String get() = "http://$host:$port/"
     val key: String get() = "$host:$port"
@@ -36,6 +40,7 @@ private const val SERVICE_TYPE = "_jaysroom._tcp."
 class DeviceDiscovery(
     context: Context,
     private val onDeviceFound: (EspDevice) -> Unit,
+    // Called with the lost device's raw nsdServiceName (see EspDevice), not its display name.
     private val onDeviceLost: (String) -> Unit
 ) {
     private val appContext = context.applicationContext
@@ -101,14 +106,14 @@ class DeviceDiscovery(
                 val host = serviceInfo.host?.hostAddress ?: return
                 val port = serviceInfo.port
                 val friendlyName = readFriendlyName(serviceInfo) ?: serviceInfo.serviceName
-                val device = EspDevice(friendlyName, host, port)
+                val device = EspDevice(friendlyName, host, port, serviceInfo.serviceName)
                 Log.d(TAG, "Resolved ${device.name} -> ${device.url}")
                 mainHandler.post { onDeviceFound(device) }
             }
         })
     }
 
-    /** Reads the "name" TXT record the ESP32 advertises, e.g. "Jay's Room". */
+    /** Reads the "name" TXT record the ESP32 advertises, e.g. "Amrut". */
     private fun readFriendlyName(serviceInfo: NsdServiceInfo): String? {
         return try {
             val bytes = serviceInfo.attributes?.get("name") ?: return null
