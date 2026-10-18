@@ -66,6 +66,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:contentDescription="@string/master_switch_description"
+            android:textOn=""
+            android:textOff=""
+            app:showText="false"
             app:thumbTint="@color/card_background"
             app:trackTint="@color/accent" />
 
