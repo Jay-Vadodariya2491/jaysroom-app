@@ -16,6 +16,15 @@ import androidx.recyclerview.widget.RecyclerView
  * mirrors whether anything in that room is currently on, turning it off
  * shuts everything off, and turning it on applies the "on" scene (fan +
  * profile light at 80%).
+ *
+ * Deliberately does NOT try to gate discovery on ConnectivityManager's idea
+ * of "connected to Wi-Fi": when this phone is itself hosting the hotspot the
+ * board joins, the phone's own active network is usually reported as mobile
+ * data (Wi-Fi is busy being the access point, not a client), so any check
+ * like that would misfire exactly when the hotspot turns on. Discovery just
+ * keeps running continuously instead, which is the simpler and more correct
+ * behavior for a phone that's either on a shared router or hosting its own
+ * hotspot.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -76,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         discovery.start()
+        refreshList()
     }
 
     override fun onStop() {

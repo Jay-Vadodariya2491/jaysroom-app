@@ -63,6 +63,7 @@
             android:padding="24dp">
 
             <ProgressBar
+                android:id="@+id/scanningSpinner"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:indeterminateTint="@color/accent" />
