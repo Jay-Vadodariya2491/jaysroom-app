@@ -1,11 +1,21 @@
 package com.jayu.jaysroom
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.io.PrintWriter
+import java.io.StringWriter
+
+private const val CRASH_PREFS = "jaysroom_crash_prefs"
+private const val CRASH_KEY = "last_crash"
 
 /**
  * Home screen: automatically scans the local network for ESP32 boards
@@ -17,20 +27,17 @@ import androidx.recyclerview.widget.RecyclerView
  * shuts everything off, and turning it on applies the "on" scene (fan +
  * profile light at 80%).
  *
- * Deliberately does NOT try to gate discovery on ConnectivityManager's idea
- * of "connected to Wi-Fi": when this phone is itself hosting the hotspot the
- * board joins, the phone's own active network is usually reported as mobile
- * data (Wi-Fi is busy being the access point, not a client), so any check
- * like that would misfire exactly when the hotspot turns on. Discovery just
- * keeps running continuously instead, which is the simpler and more correct
- * behavior for a phone that's either on a shared router or hosting its own
- * hotspot.
+ * Also installs a last-resort crash logger: if something throws and
+ * crashes the app, the stack trace is saved to disk, and the NEXT time
+ * the app opens, it's shown in a dialog (with a Copy button) - a way to
+ * get the exact exception without needing adb/USB debugging.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var discovery: DeviceDiscovery
     private lateinit var adapter: DeviceAdapter
     private lateinit var emptyState: View
+    private lateinit var emptyText: TextView
 
     // key (host:port) -> device, LinkedHashMap keeps a stable, insertion order
     private val devices = LinkedHashMap<String, EspDevice>()
@@ -41,11 +48,15 @@ class MainActivity : AppCompatActivity() {
     // key (host:port) -> is anything in that room currently on
     private val anyOnStates = HashMap<String, Boolean>()
 
+    private var errorMessage: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        installCrashLogger()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         emptyState = findViewById(R.id.emptyState)
+        emptyText = findViewById(R.id.emptyText)
         val recyclerView = findViewById<RecyclerView>(R.id.deviceList)
 
         adapter = DeviceAdapter(
@@ -78,12 +89,19 @@ class MainActivity : AppCompatActivity() {
                     anyOnStates.remove(it)
                 }
                 refreshList()
+            },
+            onError = { message ->
+                errorMessage = message
+                refreshList()
             }
         )
+
+        showLastCrashIfAny()
     }
 
     override fun onStart() {
         super.onStart()
+        errorMessage = null
         discovery.start()
         refreshList()
     }
@@ -98,6 +116,7 @@ class MainActivity : AppCompatActivity() {
     private fun refreshList() {
         adapter.submitList(devices.values.toList(), anyOnStates)
         emptyState.visibility = if (devices.isEmpty()) View.VISIBLE else View.GONE
+        emptyText.text = errorMessage ?: getString(R.string.scanning)
     }
 
     private fun handleToggle(device: EspDevice, turnOn: Boolean) {
@@ -118,5 +137,42 @@ class MainActivity : AppCompatActivity() {
             putExtra(WebViewActivity.EXTRA_TITLE, device.name)
         }
         startActivity(intent)
+    }
+
+    // --- Crash logging (no adb needed) -------------------------------------
+
+    private fun installCrashLogger() {
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val sw = StringWriter()
+                throwable.printStackTrace(PrintWriter(sw))
+                // commit() (not apply()) - this process is about to die, the
+                // write needs to actually land before that happens.
+                getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(CRASH_KEY, sw.toString())
+                    .commit()
+            } catch (e: Exception) {
+                // best-effort only - never let the logger itself crash harder
+            }
+            originalHandler?.uncaughtException(thread, throwable)
+        }
+    }
+
+    private fun showLastCrashIfAny() {
+        val prefs = getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE)
+        val trace = prefs.getString(CRASH_KEY, null) ?: return
+        prefs.edit().remove(CRASH_KEY).apply()
+
+        AlertDialog.Builder(this)
+            .setTitle("Last crash")
+            .setMessage(trace)
+            .setPositiveButton("OK", null)
+            .setNeutralButton("Copy") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Crash log", trace))
+            }
+            .show()
     }
 }

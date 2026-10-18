@@ -39,19 +39,23 @@ class DeviceController(
     private var dressingLightBrightness = 0
 
     fun connect() {
-        val url = "ws://${device.host}:${device.port}/ws"
-        val request = Request.Builder().url(url).build()
-        socket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                handleMessage(text)
-            }
+        try {
+            val url = "ws://${device.host}:${device.port}/ws"
+            val request = Request.Builder().url(url).build()
+            socket = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    handleMessage(text)
+                }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "WS connection to ${device.name} failed: ${t.message}")
-                // The switch just stops live-updating until the next connect() call
-                // (MainActivity re-creates controllers each time discovery restarts).
-            }
-        })
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    Log.w(TAG, "WS connection to ${device.name} failed: ${t.message}")
+                    // The switch just stops live-updating until the next connect() call
+                    // (MainActivity re-creates controllers each time discovery restarts).
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "connect() threw: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     fun disconnect() {

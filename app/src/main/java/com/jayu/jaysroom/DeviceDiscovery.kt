@@ -36,12 +36,22 @@ private const val SERVICE_TYPE = "_jaysroom._tcp."
  * Wraps Android's NsdManager (the OS's built-in Bonjour/mDNS client) to continuously
  * look for ESP32 boards advertising the "_jaysroom._tcp." service - the same mechanism
  * apps like the WLED app use to find devices without the user typing an IP address.
+ *
+ * Every call into WifiManager/NsdManager here is wrapped in try/catch: on some
+ * devices/Android versions, these throw instead of failing gracefully when the
+ * Wi-Fi radio is in an unusual state (e.g. this phone hosting its own hotspot
+ * rather than being a normal Wi-Fi client) - and an uncaught exception at this
+ * point was crashing the whole app outright instead of just failing to find a
+ * device.
  */
 class DeviceDiscovery(
     context: Context,
     private val onDeviceFound: (EspDevice) -> Unit,
     // Called with the lost device's raw nsdServiceName (see EspDevice), not its display name.
-    private val onDeviceLost: (String) -> Unit
+    private val onDeviceLost: (String) -> Unit,
+    // Called with a short message if discovery couldn't even start - surfaced in
+    // the UI instead of silently spinning forever or crashing.
+    private val onError: (String) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as NsdManager
@@ -58,9 +68,14 @@ class DeviceDiscovery(
 
         // mDNS runs over multicast UDP; without this lock some phones silently
         // drop the packets to save battery and devices never show up.
-        multicastLock = wifiManager.createMulticastLock("jaysroom-mdns-lock").apply {
-            setReferenceCounted(true)
-            acquire()
+        try {
+            multicastLock = wifiManager.createMulticastLock("jaysroom-mdns-lock").apply {
+                setReferenceCounted(true)
+                acquire()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "createMulticastLock/acquire threw: ${e.javaClass.simpleName}: ${e.message}")
+            // Not fatal on its own - keep going, discovery might still partly work.
         }
 
         val listener = object : NsdManager.DiscoveryListener {
@@ -85,6 +100,7 @@ class DeviceDiscovery(
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
                 Log.e(TAG, "Start discovery failed: $errorCode")
                 discovering = false
+                mainHandler.post { onError("Discovery failed to start (error $errorCode)") }
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
@@ -93,24 +109,37 @@ class DeviceDiscovery(
         }
 
         discoveryListener = listener
-        nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+
+        try {
+            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+        } catch (e: Exception) {
+            Log.e(TAG, "discoverServices threw: ${e.javaClass.simpleName}: ${e.message}")
+            discovering = false
+            mainHandler.post {
+                onError("Couldn't start scanning: ${e.javaClass.simpleName}: ${e.message}")
+            }
+        }
     }
 
     private fun resolve(service: NsdServiceInfo) {
-        nsdManager.resolveService(service, object : NsdManager.ResolveListener {
-            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                Log.e(TAG, "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
-            }
+        try {
+            nsdManager.resolveService(service, object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    Log.e(TAG, "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
+                }
 
-            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                val host = serviceInfo.host?.hostAddress ?: return
-                val port = serviceInfo.port
-                val friendlyName = readFriendlyName(serviceInfo) ?: serviceInfo.serviceName
-                val device = EspDevice(friendlyName, host, port, serviceInfo.serviceName)
-                Log.d(TAG, "Resolved ${device.name} -> ${device.url}")
-                mainHandler.post { onDeviceFound(device) }
-            }
-        })
+                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                    val host = serviceInfo.host?.hostAddress ?: return
+                    val port = serviceInfo.port
+                    val friendlyName = readFriendlyName(serviceInfo) ?: serviceInfo.serviceName
+                    val device = EspDevice(friendlyName, host, port, serviceInfo.serviceName)
+                    Log.d(TAG, "Resolved ${device.name} -> ${device.url}")
+                    mainHandler.post { onDeviceFound(device) }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveService threw: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     /** Reads the "name" TXT record the ESP32 advertises, e.g. "Amrut". */
