@@ -1,5 +1,11 @@
 <resources>
-    <style name="Theme.JaysRoom" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!--
+      MaterialSwitch (used on the home switch and each room card) is a
+      Material 3 widget - it expects a Theme.Material3.* parent and can
+      crash or render invisibly under the older Theme.MaterialComponents.*
+      (Material 2), which this was using before.
+    -->
+    <style name="Theme.JaysRoom" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/accent</item>
         <item name="colorPrimaryDark">@color/header_end</item>
         <item name="colorAccent">@color/accent</item>

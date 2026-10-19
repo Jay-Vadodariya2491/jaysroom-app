@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Amrut</string>
-    <string name="header_subtitle">Devices on your Wi-Fi</string>
-    <string name="scanning">Looking for Amrut…</string>
-    <string name="master_switch_description">All lights and fan</string>
+    <string name="header_subtitle">Rooms on your Wi-Fi</string>
+    <string name="scanning">Looking for rooms…</string>
+    <string name="room_switch_description">This room\'s lights and fan</string>
+    <string name="home_switch_description">All rooms\' lights and fans</string>
 </resources>

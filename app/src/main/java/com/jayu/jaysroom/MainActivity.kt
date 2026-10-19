@@ -11,6 +11,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.materialswitch.MaterialSwitch
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -22,10 +23,13 @@ private const val CRASH_KEY = "last_crash"
  * advertising themselves (see DeviceDiscovery) and lists them - tap one
  * to open its dashboard. No IP address entry, same idea as the WLED app.
  *
- * Each card also gets its own master switch (see DeviceController): it
+ * Each card also gets its own room switch (see DeviceController): it
  * mirrors whether anything in that room is currently on, turning it off
  * shuts everything off, and turning it on applies the "on" scene (fan +
- * profile light at 80%).
+ * profile light at 80%). The header has a matching Home switch next to
+ * "Amrut" (the home name - each discovered board's own room name, e.g.
+ * "Jay's room", is what shows on its card) that does the same thing but
+ * across every discovered room at once.
  *
  * Also installs a last-resort crash logger: if something throws and
  * crashes the app, the stack trace is saved to disk, and the NEXT time
@@ -38,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: DeviceAdapter
     private lateinit var emptyState: View
     private lateinit var emptyText: TextView
+    private lateinit var homeSwitch: MaterialSwitch
 
     // key (host:port) -> device, LinkedHashMap keeps a stable, insertion order
     private val devices = LinkedHashMap<String, EspDevice>()
@@ -57,6 +62,7 @@ class MainActivity : AppCompatActivity() {
 
         emptyState = findViewById(R.id.emptyState)
         emptyText = findViewById(R.id.emptyText)
+        homeSwitch = findViewById(R.id.homeSwitch)
         val recyclerView = findViewById<RecyclerView>(R.id.deviceList)
 
         adapter = DeviceAdapter(
@@ -117,6 +123,14 @@ class MainActivity : AppCompatActivity() {
         adapter.submitList(devices.values.toList(), anyOnStates)
         emptyState.visibility = if (devices.isEmpty()) View.VISIBLE else View.GONE
         emptyText.text = errorMessage ?: getString(R.string.scanning)
+
+        // Home switch mirrors whether ANY discovered room is currently on.
+        // Same guarded-rebind pattern as DeviceAdapter uses for the room
+        // switches, so refreshing state doesn't itself re-fire the listener.
+        val anyRoomOn = anyOnStates.values.any { it }
+        homeSwitch.setOnCheckedChangeListener(null)
+        homeSwitch.isChecked = anyRoomOn
+        homeSwitch.setOnCheckedChangeListener { _, isChecked -> handleHomeToggle(isChecked) }
     }
 
     private fun handleToggle(device: EspDevice, turnOn: Boolean) {
@@ -129,6 +143,18 @@ class MainActivity : AppCompatActivity() {
         // Optimistic update - the real broadcast from the board will confirm
         // (or correct) this a moment later.
         anyOnStates[device.key] = turnOn
+        refreshList()
+    }
+
+    /** Home switch toggled: apply the same on/off action to every discovered room. */
+    private fun handleHomeToggle(turnOn: Boolean) {
+        controllers.values.forEach { controller ->
+            if (turnOn) controller.applyOnScene() else controller.turnAllOff()
+        }
+        // Optimistic update for every room - the real broadcasts will confirm
+        // (or correct) this a moment later.
+        devices.keys.forEach { key -> anyOnStates[key] = turnOn }
+        refreshList()
     }
 
     private fun openDevice(device: EspDevice) {
